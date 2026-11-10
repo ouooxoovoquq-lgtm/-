@@ -533,7 +533,12 @@ const PLATFORMS = {
 function loadPlatforms(){
   state.platformsMeta = PLATFORMS;
   const keys = Object.keys(state.platformsMeta);
-  state.platform = keys.find(k => state.platformsMeta[k].enabled) || keys[0];
+  // 默认平台：千帆需自行开通模型权限、Kimi 仅内网可用，因此默认走火山方舟豆包
+  const DEFAULT_PLATFORM = "doubao";
+  const defaultMeta = state.platformsMeta[DEFAULT_PLATFORM];
+  state.platform = (defaultMeta && defaultMeta.enabled)
+    ? DEFAULT_PLATFORM
+    : (keys.find(k => state.platformsMeta[k].enabled) || keys[0]);
   renderPlatformSwitches();
   updateActiveLabel();
 }
@@ -733,7 +738,7 @@ function renderSettingsView(){
         </section>
         <section class="settings-card">
           <h3>密钥与接口</h3>
-          <p class="prompt-summary" style="margin-bottom:14px;">本页面直连三方模型接口（popo 静态版），密钥保存在浏览器本地（localStorage），不上传任何服务器。切换平台后需先配置对应密钥。</p>
+          <p class="prompt-summary" style="margin-bottom:14px;">本页面直连三方模型接口（popo 静态版），密钥保存在浏览器本地（localStorage），不上传任何服务器。切换平台后需先配置对应密钥。提示：百度千帆需先在千帆控制台开通模型权限后填入 Key；Kimi 为内部 OneAPI，仅内网可用。</p>
           <div class="settings-key-grid">${keyCards}</div>
         </section>
       </div>
