@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>智能日报助手 · 多模型切换</title>
+<script src="./marked.min.js"></script>
+<style>
+  :root{
+    --bg:#F5F7FB;
+    --panel:#FFFFFF;
+    --ink:#1B2233;
+    --sub:#6B7385;
+    --line:#E6E9F2;
+    --accent:#3654F4;
+    --accent-soft:#EAEEFF;
+    --accent-deep:#20348F;
+    --good:#1FA971;
+    --radius:14px;
+    font-family:"PingFang SC","Microsoft YaHei","Inter",-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;}
+  .layout{display:grid;grid-template-columns:236px 1fr;height:100vh;}
+
+  /* ---------- 侧边栏 ---------- */
+  .sidebar{background:#FBFCFF;border-right:1px solid var(--line);padding:16px 14px;display:flex;flex-direction:column;gap:4px;}
+  .brand{display:flex;align-items:center;gap:9px;padding:4px 6px 16px;}
+  .brand .mark{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#7C8BFF);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:15px;}
+  .brand .txt{font-weight:700;font-size:15px;letter-spacing:.2px;}
+  .brand .sub{font-size:11px;color:var(--sub);margin-top:1px;}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--sub);font-size:13.5px;cursor:pointer;transition:.16s;}
+  .nav-item:hover{background:#F3F5FA;color:var(--ink);}
+  .nav-item.active{background:var(--accent-soft);color:var(--accent-deep);font-weight:600;}
+  .sidebar-divider{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:14px 4px 12px;}
+
+  .platform-panel{margin-top:0;padding-top:2px;}
+  .platform-panel h4{margin:0 0 8px;font-size:10.5px;color:#9AA0B0;font-weight:600;letter-spacing:.7px;text-transform:uppercase;padding:0 4px;}
+  .platform-list{display:flex;flex-direction:column;gap:4px;}
+  .platform-card{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1.5px solid transparent;border-radius:10px;background:transparent;cursor:pointer;transition:background .15s,border-color .15s,transform .18s cubic-bezier(.34,1.56,.64,1),box-shadow .18s;}
+  .platform-card:hover{background:#F3F5FA;}
+  .platform-card.selected{border-color:var(--accent);background:var(--accent-soft);transform:scale(1.018);box-shadow:0 4px 14px rgba(54,84,244,.13);}
+  .platform-card.disabled{opacity:.4;cursor:not-allowed;}
+  .platform-logo{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex:none;}
+  .platform-info{flex:1;min-width:0;}
+  .platform-info .name{font-size:12.5px;font-weight:600;color:var(--ink);}
+  .platform-info .key-status{font-size:10px;margin-top:1px;color:#B0B7C8;}
+  .platform-info .key-status.ok{color:var(--good);}
+  .platform-check{width:16px;height:16px;border-radius:50%;border:1.5px solid #C7CEE2;display:flex;align-items:center;justify-content:center;flex:none;}
+  .platform-card.selected .platform-check{background:var(--accent);border-color:var(--accent);color:#fff;font-size:10px;animation:check-pop .22s cubic-bezier(.34,1.56,.64,1) both;}
+  @keyframes check-pop{
+    0%{transform:scale(0);}
+    70%{transform:scale(1.25);}
+    100%{transform:scale(1);}
+  }
+
+  /* ---------- 平台能力标签 ---------- */
+  .cap-tags{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px;}
+  .cap-tag{font-size:9.5px;padding:1.5px 5px;border-radius:4px;background:#F0F3FF;color:#4B5CB8;font-weight:500;line-height:1.5;white-space:nowrap;}
+  .cap-tag.think{background:#F5F0FF;color:#7C3AED;}
+
+  /* ---------- 深度思考徽章 ---------- */
+  .think-badge{font-size:8px;font-weight:700;color:#fff;background:#7C3AED;padding:2px 5px;border-radius:4px;white-space:nowrap;flex:none;}
+
+  /* ---------- 主区域 ---------- */
+  .main{display:flex;flex-direction:column;height:100vh;}
+  .topbar{padding:12px 28px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;background:var(--panel);}
+  .topbar h1{font-size:16px;margin:0;font-weight:600;}
+  .topbar p{margin:2px 0 0;font-size:12px;color:var(--sub);}
+  .active-badge{display:flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent-deep);padding:6px 13px 6px 8px;border-radius:999px;font-size:12.5px;font-weight:600;}
+  .active-badge .badge-icon{width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700;flex:none;}
+  .active-badge .badge-dot{width:6px;height:6px;border-radius:50%;flex:none;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--good);}
+  .view-panel{display:none;flex:1;min-height:0;overflow:hidden;}
+  .view-panel.active{display:flex;flex-direction:column;}
+  .content-view{padding:24px 28px;overflow-y:auto;background:var(--bg);}
+
+  .thread{flex:1;overflow-y:auto;padding:22px 30px;display:flex;flex-direction:column;gap:12px;background:#fff;}
+  /* AI 气泡：接近满宽，保持内容区清爽 */
+  .bubble{position:relative;font-size:13.5px;line-height:1.85;}
+  .bubble.ai{background:#fff;border:none;align-self:flex-start;width:100%;max-width:100%;padding:0;margin-bottom:12px;}
+  .bubble.ai .bubble-inner{padding:16px 18px 12px;background:#fff;border:1px solid #EEF1F7;border-radius:14px;box-shadow:none;}
+  .bubble.user{background:none;align-self:flex-end;max-width:78%;margin:4px 0 14px auto;}
+  .bubble.user .bubble-inner{background:#F0F3FF;border:1px solid #E0E6FF;border-radius:18px 18px 6px 18px;padding:12px 16px;box-shadow:none;}
+  .bubble .tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--sub);margin-bottom:8px;}
+  .bubble.user .tag{color:var(--accent-deep);}
+  .bubble .progress{font-weight:700;color:var(--accent-deep);}
+  /* action bar：AI 气泡底部操作行 */
+  .bubble-actions{display:flex;align-items:center;gap:4px;margin-top:10px;opacity:.42;transition:opacity .15s;}
+  .bubble.ai:hover .bubble-actions{opacity:1;}
+  .act-btn{display:flex;align-items:center;gap:5px;padding:4px 8px;border:none;background:transparent;color:#9AA0B0;font-size:12px;cursor:pointer;border-radius:7px;transition:.12s;font-family:inherit;}
+  .act-btn:hover{background:#F3F5FA;color:#374151;}
+  /* 外置时间戳 */
+  .message-row{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;align-items:start;width:100%;}
+  .message-row .message-time{grid-column:1;justify-self:center;margin-top:10px;padding:6px 10px;border:1px solid #E4E6EB;border-radius:8px;background:#fff;color:#9AA0AA;font-size:12px;line-height:1;white-space:nowrap;}
+  .message-row .bubble{grid-column:2;}
+  .message-row.user .bubble{justify-self:end;}
+  .message-row.ai .bubble{justify-self:stretch;}
+  .thumbs{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .thumbs img{width:56px;height:56px;object-fit:cover;border-radius:8px;border:1px solid rgba(0,0,0,.08);}
+
+  .welcome-card{width:min(760px,100%);margin:36px auto 18px;padding:28px 30px;border:1px solid #EEF1F7;border-radius:20px;background:linear-gradient(180deg,#fff 0%,#FBFCFF 100%);box-shadow:0 14px 42px rgba(27,34,51,.06);text-align:center;}
+  .welcome-kicker{font-size:12px;color:var(--accent-deep);font-weight:700;background:var(--accent-soft);display:inline-flex;padding:4px 10px;border-radius:999px;margin-bottom:12px;}
+  .welcome-card h2{margin:0;font-size:22px;line-height:1.35;color:#111827;}
+  .welcome-card p{margin:10px auto 18px;color:var(--sub);font-size:13px;line-height:1.8;max-width:560px;}
+  .welcome-chips{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;}
+  .welcome-chip{border:1px solid var(--line);background:#fff;color:#374151;border-radius:999px;padding:8px 13px;font-size:12.5px;cursor:pointer;transition:.14s;font-family:inherit;}
+  .welcome-chip:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-deep);}
+
+  .composer{border-top:1px solid #EEF1F7;padding:12px 28px 18px;background:#fff;}
+  .attach-preview{display:none;gap:10px;margin:0 0 12px;overflow-x:auto;overflow-y:hidden;padding:2px 2px 4px;scrollbar-width:thin;}
+  .attach-preview.has-items{display:flex;}
+  .attach-card{position:relative;width:72px;height:72px;flex:0 0 auto;border:1px solid #E6E9F2;border-radius:12px;overflow:hidden;background:#F7F8FB;}
+  .attach-card img{width:100%;height:100%;object-fit:cover;display:block;}
+  .attach-remove{position:absolute;right:4px;top:4px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(17,24,39,.72);color:#fff;cursor:pointer;font-size:12px;line-height:18px;padding:0;display:flex;align-items:center;justify-content:center;}
+  .attach-remove:hover{background:rgba(17,24,39,.88);}
+  .attach-video-card{position:relative;width:150px;height:72px;flex:0 0 auto;padding:10px 28px 10px 10px;border:1px solid #E6E9F2;border-radius:12px;background:#F7F8FB;display:flex;align-items:center;gap:8px;overflow:hidden;}
+  .attach-video-icon{font-size:20px;flex:none;}
+  .attach-video-name{font-size:11.5px;color:#374151;line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+  /* 千问风格输入框 */
+  .input-box{border:1.5px solid #E4E8F2;border-radius:24px;background:#fff;padding:15px 18px 11px;box-shadow:0 8px 28px rgba(27,34,51,.055);transition:border-color .16s,box-shadow .16s,transform .16s;}
+  .input-box:focus-within{border-color:#BFC8FF;box-shadow:0 12px 34px rgba(54,84,244,.11);transform:translateY(-1px);}
+  .input-box textarea{display:block;width:100%;border:none;background:transparent;resize:none;font-size:14px;font-family:inherit;outline:none;min-height:24px;max-height:160px;line-height:1.65;color:var(--ink);}
+  .input-box textarea::placeholder{color:#B0B7C8;}
+  .input-toolbar{display:flex;align-items:center;margin-top:8px;gap:0;}
+  .toolbar-left{display:flex;align-items:center;gap:6px;flex:1;}
+  .tool-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;border:none;background:none;color:var(--sub);font-size:12.5px;cursor:pointer;transition:.14s;font-family:inherit;}
+  .tool-btn:hover{background:#F3F5FA;color:var(--ink);}
+  .tool-btn .icon{font-size:14px;}
+  .tool-divider{width:1px;height:16px;background:var(--line);margin:0 4px;}
+  .send-btn{background:var(--accent);color:#fff;border:none;border-radius:12px;padding:8px 18px;font-size:13.5px;font-weight:600;cursor:pointer;flex:none;transition:background .14s;}
+  .send-btn:hover{background:var(--accent-deep);}
+  .send-btn.pause{background:#111827;}
+  .send-btn.pause:hover{background:#2F3340;}
+  .send-btn:disabled{opacity:.5;cursor:not-allowed;}
+  .hint{font-size:11px;color:#B0B7C8;margin-top:6px;}
+
+  /* 加载态三点动画 */
+  .typing-dots{display:inline-flex;align-items:center;gap:5px;padding:4px 2px;}
+  .typing-dots span{width:7px;height:7px;border-radius:50%;background:var(--sub);opacity:.4;animation:typing-bounce 1.2s infinite ease-in-out;}
+  .typing-dots span:nth-child(1){animation-delay:0s;}
+  .typing-dots span:nth-child(2){animation-delay:.2s;}
+  .typing-dots span:nth-child(3){animation-delay:.4s;}
+  @keyframes typing-bounce{
+    0%,80%,100%{transform:translateY(0);opacity:.4;}
+    40%{transform:translateY(-5px);opacity:1;}
+  }
+
+  /* Markdown 渲染样式 —— 豆包风格 */
+  .md-body{line-height:1.9;word-break:break-word;font-size:14px;color:#1B2233;}
+  .md-body>*:first-child{margin-top:0!important;}
+  .md-body>*:last-child{margin-bottom:0!important;}
+  /* 标题 */
+  .md-body h1{font-size:17px;font-weight:700;color:#111827;margin:18px 0 8px;line-height:1.4;}
+  .md-body h2{font-size:15.5px;font-weight:700;color:#111827;margin:16px 0 6px;line-height:1.4;}
+  .md-body h3{font-size:14px;font-weight:700;color:#374151;margin:12px 0 4px;}
+  .md-body h4{font-size:13.5px;font-weight:600;color:#6B7385;margin:8px 0 4px;}
+  /* 段落与间距 */
+  .md-body p{margin:2px 0 10px;}
+  /* 列表 */
+  .md-body ul,.md-body ol{margin:4px 0 10px;padding-left:22px;}
+  .md-body li{margin:4px 0;line-height:1.85;}
+  .md-body li>p{margin:0;}
+  /* 行内代码 */
+  .md-body code{font-family:"SF Mono","Fira Code","Cascadia Code",monospace;font-size:12.5px;background:#F0F2F7;border:1px solid #DDE2EE;border-radius:5px;padding:1px 6px;color:#374151;}
+  /* 代码块 */
+  .md-body pre{background:#1C1E2A;border-radius:10px;padding:14px 18px;overflow-x:auto;margin:10px 0;}
+  .md-body pre code{background:none;border:none;color:#E2E8F0;font-size:13px;padding:0;line-height:1.7;}
+  /* 引用 */
+  .md-body blockquote{border-left:3px solid #BFC8FF;margin:8px 0;padding:8px 14px;background:#F5F7FF;border-radius:0 8px 8px 0;color:#6B7385;}
+  .md-body blockquote p{margin:0;}
+  /* 分割线 */
+  .md-body hr{border:none;border-top:1px solid #E6E9F2;margin:14px 0;}
+  /* 加粗 */
+  .md-body strong{font-weight:700;color:#111827;}
+  .md-body em{font-style:italic;color:#6B7385;}
+  /* 表格 */
+  .md-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px;}
+  .md-body th{background:#F0F3FF;color:#20348F;font-weight:600;padding:8px 12px;border:1px solid #DDE4FF;text-align:left;}
+  .md-body td{padding:7px 12px;border:1px solid #E6E9F2;}
+  .md-body tr:nth-child(even) td{background:#FAFBFF;}
+  /* 日报三段式标题 */
+  .report-section{display:block;font-weight:700;color:#20348F;font-size:14.5px;margin:18px 0 6px;}
+  /* 用户气泡内颜色反转 */
+  .bubble.user .md-body{color:#1B2233;}
+  .bubble.user .md-body strong,.bubble.user .md-body h1,.bubble.user .md-body h2,.bubble.user .md-body h3,.bubble.user .report-section{color:#111827;}
+  .bubble.user .md-body code{background:rgba(255,255,255,.55);border-color:rgba(54,84,244,.18);color:#374151;}
+  .bubble.user .md-body blockquote{background:rgba(255,255,255,.5);border-color:rgba(54,84,244,.25);}
+  /* 进度高亮 */
+  .progress{font-weight:700;color:var(--accent-deep);}
+  .bubble.user .progress{color:var(--accent-deep);}
+  .record-list{display:flex;flex-direction:column;gap:12px;}
+  .record-item{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px 16px;}
+  .record-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px;}
+  .record-role{font-size:12px;font-weight:700;color:var(--accent-deep);}
+  .record-time{font-size:11px;color:var(--sub);}
+  .record-text{font-size:13px;line-height:1.7;color:var(--ink);white-space:pre-wrap;}
+  .settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+  .settings-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,430px);gap:18px;align-items:start;}
+  .settings-left{display:flex;flex-direction:column;gap:14px;min-width:0;}
+  .settings-right{min-width:0;}
+  .settings-key-grid{display:grid;grid-template-columns:1fr;gap:10px;}
+  .settings-key-grid .settings-card{padding:12px;border-radius:14px;background:#FBFCFF;}
+  .settings-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px;}
+  .settings-card.wide{grid-column:1 / -1;}
+  .settings-card h3{margin:0 0 12px;font-size:14px;color:var(--ink);}
+  .kv{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px dashed var(--line);font-size:12.5px;}
+  .kv:last-child{border-bottom:none;}
+  .kv span:first-child{color:var(--sub);}
+  .kv span:last-child{font-weight:600;text-align:right;word-break:break-word;}
+  .prompt-summary{margin:0;color:var(--sub);font-size:13px;line-height:1.8;white-space:pre-wrap;}
+
+  /* 图 2 风格模型参数面板 */
+  .model-param-panel{background:#fff;border:1px solid var(--line);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:18px;}
+  .model-param-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .model-param-header h3{margin:0;font-size:20px;line-height:1.2;color:#111827;font-weight:700;}
+  .model-param-actions{display:flex;align-items:center;gap:8px;}
+  .model-param-actions::before{content:"";width:1px;height:20px;background:var(--line);order:2;}
+  .icon-param-btn{width:32px;height:32px;border:none;background:transparent;color:#2F3340;border-radius:9px;font-size:25px;line-height:1;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;transition:.14s;}
+  .icon-param-btn:hover{background:#F3F5FA;color:#111827;}
+  .api-mode-card{border:1px solid #DDE1EA;border-radius:13px;padding:14px 16px;background:#fff;}
+  .api-mode-title{display:flex;align-items:center;gap:12px;font-size:14px;color:#111827;}
+  .api-mode-title strong{font-size:16px;font-weight:700;}
+  .api-mode-caret{font-size:15px;color:#6B7280;}
+  .api-mode-card p{margin:10px 0 0;color:#7B8191;font-size:13px;line-height:1.7;}
+  .model-param-divider{height:1px;background:#DDE1EA;margin:4px 0;}
+  .model-param-field{display:flex;flex-direction:column;gap:12px;}
+  .model-param-field.locked,.model-param-field.readonly-field{opacity:.72;}
+  .model-param-label{align-self:flex-start;font-size:16px;line-height:1.25;color:#111827;border-bottom:1px dotted #8D94A3;padding-bottom:2px;}
+  .model-param-control-row{display:grid;grid-template-columns:minmax(0,1fr) 112px;gap:16px;align-items:center;}
+  .model-param-slider{width:100%;height:4px;accent-color:#4B4D57;cursor:pointer;}
+  .model-param-slider:disabled{cursor:not-allowed;opacity:.5;}
+  .model-param-number{width:112px;height:48px;border:1px solid #D8DCE5;border-radius:13px;padding:0 16px;background:#fff;color:#111827;font-size:17px;font-family:inherit;outline:none;}
+  .model-param-number:focus{border-color:#BFC8FF;box-shadow:0 0 0 3px rgba(54,84,244,.08);}
+  .model-param-number:disabled{background:#FAFAFC;color:#6B7280;cursor:not-allowed;}
+  .model-param-static{font-size:15px;color:#111827;font-weight:700;}
+  .model-param-textarea{width:100%;min-height:220px;resize:vertical;border:1px solid #D8DCE5;border-radius:12px;padding:14px 16px;background:#fff;color:#111827;font-size:14px;line-height:1.75;font-family:inherit;outline:none;}
+  .model-param-textarea:focus{border-color:#BFC8FF;box-shadow:0 0 0 3px rgba(54,84,244,.08);}
+  .model-param-select{width:100%;height:48px;border:1px solid #D8DCE5;border-radius:13px;background:#fff;color:#111827;padding:0 16px;font-size:16px;font-family:inherit;outline:none;}
+  .model-param-select:disabled{background:#FAFAFC;color:#111827;opacity:1;cursor:not-allowed;}
+  .model-param-hint{margin:0;color:#7B8191;font-size:12px;line-height:1.6;}
+  .model-param-hint.lock{padding:8px 10px;border-radius:9px;background:#FFF7ED;color:#B45309;}
+  .model-param-inline-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;}
+  .model-param-inline-actions .model-param-hint{margin-right:auto;}
+  .primary-btn,.secondary-btn{border:none;border-radius:10px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.14s;}
+  .primary-btn{background:#111827;color:#fff;}
+  .primary-btn:hover{background:#2F3340;}
+  .secondary-btn{background:#fff;color:#4B5563;border:1px solid #D8DCE5;}
+  .secondary-btn:hover{background:#F3F5FA;color:#111827;border-color:#C9CED8;}
+  @media (max-width:1100px){.settings-layout{grid-template-columns:1fr;}.settings-right{order:-1;}.model-param-panel{max-width:none;}}
+
+  /* ---------- 全局拖拽上传遮罩 ---------- */
+  .drop-overlay{
+    position:fixed;inset:0;z-index:999;
+    background:rgba(245,247,251,.92);
+    backdrop-filter:blur(2px);
+    display:none;
+    align-items:center;justify-content:center;
+    flex-direction:column;gap:14px;
+  }
+  .drop-overlay.show{display:flex;}
+  .drop-overlay .zone{
+    width:min(560px,80vw);
+    padding:56px 40px;
+    border:2px dashed var(--accent);
+    border-radius:20px;
+    background:#fff;
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+    box-shadow:0 20px 60px rgba(54,84,244,.14);
+    pointer-events:none; /* 让 dragover/drop 事件穿透到 body，避免子元素抖动 */
+  }
+  .drop-overlay .zone.dragging{border-color:var(--accent-deep);background:var(--accent-soft);}
+  .drop-overlay .icon{font-size:40px;line-height:1;}
+  .drop-overlay .title{font-size:18px;font-weight:700;color:var(--ink);}
+  .drop-overlay .desc{font-size:12.5px;color:var(--sub);text-align:center;line-height:1.7;}
+</style>
+</head>
+<body>
+
+<!-- 全局拖拽上传遮罩：拖动文件到窗口任意位置即可触发 -->
+<div class="drop-overlay" id="drop-overlay">
+  <div class="zone" id="drop-zone">
+    <div class="icon">📥</div>
+    <div class="title">在此处拖放文件</div>
+    <div class="desc">支持图片素材（截图/设计稿），拖入即自动加入本轮日报附件<br/>最多 9 张，单张不超过 20MB，支持 png / jpg / jpeg / webp</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">日</div>
+      <div>
+        <div class="txt">智能日报助手</div>
+        <div class="sub">UI/UX 设计师专属</div>
+      </div>
+    </div>
+    <div class="nav-item active" data-view="generate">📄 生成日报</div>
+    <div class="nav-item" data-view="records">💬 对话记录</div>
+    <div class="nav-item" data-view="settings">⚙️ 模式设置</div>
+
+    <div class="sidebar-divider"></div>
+
+    <div class="platform-panel">
+      <h4>模型平台切换</h4>
+      <div id="platform-list" class="platform-list"></div>
+    </div>
+  </aside>
+
+  <!-- 主区域 -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1 id="page-title">生成日报</h1>
+        <p id="page-subtitle">IM 流、图片、短视频和文字统一在下方输入</p>
+      </div>
+      <div class="active-badge"><span class="dot"></span><span id="active-platform-label">加载中…</span></div>
+    </div>
+
+    <section class="view-panel active" id="view-generate" data-view="generate">
+      <div class="thread" id="thread">
+        <div class="welcome-card">
+          <div class="welcome-kicker">UI/UX 日报助手</div>
+          <h2>今天要整理哪些工作？</h2>
+          <p>上传 UI 截图、IM 记录、短视频素材，或直接输入文字。我会按【今日完成工作】【现存问题&amp;待协调事项】【明日工作计划】生成日报。</p>
+          <div class="welcome-chips">
+            <button class="welcome-chip" data-prompt="请根据我上传的 UI 走查截图，整理今天完成的界面优化工作。">整理今天的 UI 走查截图</button>
+            <button class="welcome-chip" data-prompt="请根据我粘贴的 IM 沟通记录，汇总今天的工作日报。">根据 IM 记录生成日报</button>
+            <button class="welcome-chip" data-prompt="请结合我上传的图片和视频素材，生成今天的工作日报。">汇总图片和视频素材</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer">
+        <div class="input-box">
+          <input type="file" id="file-input" accept="image/*,video/*" multiple hidden />
+          <div class="attach-preview" id="attach-preview"></div>
+          <textarea id="text-input" rows="1" placeholder="发消息…"></textarea>
+          <div class="input-toolbar">
+            <div class="toolbar-left">
+              <button class="tool-btn" id="attach-btn" title="上传图片/视频">
+                <span class="icon">📎</span><span>上传素材</span>
+              </button>
+            </div>
+            <button class="send-btn" id="send-btn">生成日报</button>
+          </div>
+        </div>
+        <div class="hint">回车发送 · Cmd+回车换行 · 支持拖拽图片/视频</div>
+      </div>
+    </section>
+
+    <section class="view-panel content-view" id="view-records" data-view="records">
+      <div id="records-list"></div>
+    </section>
+
+    <section class="view-panel content-view" id="view-settings" data-view="settings">
+      <div id="settings-content"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const state = {
+  platform: null,
+  platformsMeta: {},
+  attachedImages: [],   // {file, url, dataUrl}
+  attachedVideos: [],   // {file, name, type, size}
+  videoUrls: [],
+  history: [],
+  records: [],
+  isGenerating: false,
+  currentAbortController: null,
+  currentAiBubble: null,
+  userId: "designer_local",
+};
+
+const threadEl = document.getElementById("thread");
+const platformListEl = document.getElementById("platform-list");
+const activeLabelEl = document.getElementById("active-platform-label");
+const attachPreviewEl = document.getElementById("attach-preview");
+const fileInput = document.getElementById("file-input");
+const textInput = document.getElementById("text-input");
+const sendBtn = document.getElementById("send-btn");
+const navItems = document.querySelectorAll(".nav-item[data-view]");
+const viewPanels = document.querySelectorAll(".view-panel[data-view]");
+const pageTitleEl = document.getElementById("page-title");
+const pageSubtitleEl = document.getElementById("page-subtitle");
+const recordsListEl = document.getElementById("records-list");
+const settingsContentEl = document.getElementById("settings-content");
+
+const VIEW_META = {
+  generate: { title: "生成日报", subtitle: "IM 流、图片、短视频和文字统一在下方输入" },
+  records: { title: "对话记录", subtitle: "查看本轮会话中的输入、素材和日报输出" },
+  settings: { title: "模式设置", subtitle: "查看当前模型、统一参数和系统人设" },
+};
+
+function switchView(view){
+  navItems.forEach(item => item.classList.toggle("active", item.dataset.view === view));
+  viewPanels.forEach(panel => panel.classList.toggle("active", panel.dataset.view === view));
+  const meta = VIEW_META[view] || VIEW_META.generate;
+  pageTitleEl.textContent = meta.title;
+  pageSubtitleEl.textContent = meta.subtitle;
+  if (view === "records") renderRecordsView();
+  if (view === "settings") renderSettingsView();
+}
+
+function updateSendButtonState(){
+  sendBtn.disabled = false;
+  sendBtn.textContent = state.isGenerating ? "暂停" : "生成日报";
+  sendBtn.classList.toggle("pause", state.isGenerating);
+}
+
+function pauseGeneration(){
+  if (!state.isGenerating) return;
+  if (state.currentAbortController) state.currentAbortController.abort();
+}
+
+navItems.forEach(item => item.addEventListener("click", () => switchView(item.dataset.view)));
+
+document.querySelectorAll(".welcome-chip").forEach(chip => {
+  chip.addEventListener("click", () => {
+    textInput.value = chip.dataset.prompt || "";
+    textInput.focus();
+    textInput.dispatchEvent(new Event("input"));
+  });
+});
+
+const DEFAULT_SYSTEM_PROMPT = `你是专业UI/UX体验设计职场汇报助手，支持图片、短视频完整解析。
+1. 完整读取视频时序画面、UI截图内容，记住本轮全部对话素材，汇总日报不遗漏任何信息；
+2. 精准提取界面迭代、交互测试、会议讨论、页面优化、需求走查等工作内容；
+3. 严格固定输出三段式日报结构：【今日完成工作】【现存问题&待协调事项】【明日工作计划】；
+4. 行文正式简洁职场风格，绝不虚构不存在的工作内容，所有描述必须基于本轮上传的视频、图片、文字素材，禁止编造未发生的工作；
+5. 多轮对话自动关联前面所有聊天、图片、视频内容，无需用户重复复述信息；
+6. 【今日完成工作】每一条严格使用如下格式输出：
+   "{序号}、{工作内容}"
+   仅对其中的重点/大项工作，在句尾追加 "，进度{百分比}%"；
+   普通子项、细节说明不写进度，不要每一条都写进度。
+7. Markdown 输出格式强约束：
+   - 可以使用 Markdown 标题组织三段日报；
+   - 每段下面只能使用顶层中文编号列表；
+   - 列表条目格式必须是 "{number}、{content}"；
+   - 今日完成工作里的重点/大项格式必须是 "{number}、{content}，进度{progress}%"；
+   - 禁止输出 "-"、"•"、"*" 等项目符号；
+   - 禁止输出 "1.1"、"1.2"、"2.1" 等二级编号；
+   - 禁止在任一条下继续拆子列表；
+   - 每条必须合并成一句自然语言日报描述。
+8. 只输出日报正文本身，不要输出多余的寒暄、解释或 Markdown 代码块符号。`;
+
+const REPORT_FORMAT_GUARD = `【强制 Markdown 日报格式】
+1. 最终回答必须是 Markdown 日报正文。
+2. 可以使用 Markdown 标题，但标题下只能输出顶层中文编号列表。
+3. 每条列表只能使用 1、2、3、这种中文顿号编号。
+4. 今日完成工作的大项必须使用：{number}、{content}，进度{progress}%。
+5. 普通条目使用：{number}、{content}，不要强行加进度。
+6. 禁止项目符号、二级编号、缩进子列表。
+7. 禁止把一条日报拆成 1.1、1.2 或 bullet 子项。
+8. 每条日报必须是面向汇报对象的自然语言工作描述，不得输出 Task 编号、函数名、变量名、实现步骤、调试记录或子任务清单。`;
+
+const SYSTEM_PROMPT_STORAGE_KEY = "daily_report_system_prompt";
+let currentSystemPrompt = DEFAULT_SYSTEM_PROMPT;
+
+function getCurrentSystemPrompt(){
+  const base = currentSystemPrompt.trim() || DEFAULT_SYSTEM_PROMPT;
+  return `${base}\n\n${REPORT_FORMAT_GUARD}`;
+}
+
+const COMMON_PARAMS = {
+  temperature: 0.3,
+  top_p: 0.4,
+  stream: true,
+};
+
+const PLATFORMS = {
+  qianfan: {
+    platform_name: "百度千帆",
+    model: "ernie-4.5-turbo-vl",
+    endpoint: "https://qianfan.baidubce.com/v2/chat/completions",
+    apiKey: "",
+    keyStorageName: "daily_report_qianfan_api_key",
+    keyAliases: ["QIANFAN_API_KEY", "qianfan_api_key", "qianfanKey"],
+    enabled: true,
+    capabilities: ["图片", "视频", "流式"],
+    temperature: 0.3,
+    top_p: 0.4,
+    params: {
+      temperature: { value: 0.3, min: 0, max: 1, step: 0.1, locked: false, desc: "值越低越稳定，值越高越发散。" },
+      top_p: { value: 0.4, min: 0, max: 1, step: 0.05, locked: false, desc: "控制采样范围，值越低越聚焦。" },
+    },
+  },
+  kimi: {
+    platform_name: "Kimi（内部 OneAPI）",
+    model: "Kimi-K2.6",
+    endpoint: "https://oneapi-comate.baidu-int.com/v1/chat/completions",
+    apiKey: "",
+    keyStorageName: "daily_report_kimi_api_key",
+    keyAliases: ["KIMI_API_KEY", "kimi_api_key", "kimiKey"],
+    enabled: true,
+    capabilities: ["文本", "长上下文", "流式"],
+    temperature: 1,
+    top_p: 0.95,
+    params: {
+      temperature: { value: 1, min: 1, max: 1, step: 0.1, locked: true, desc: "内部 OneAPI 的 Kimi-K2.6 固定要求 temperature=1，避免请求失败。" },
+      top_p: { value: 0.95, min: 0.95, max: 0.95, step: 0.05, locked: true, desc: "内部 OneAPI 的 Kimi-K2.6 固定要求 top_p=0.95，避免请求失败。" },
+    },
+    forceDefaultKey: true,
+  },
+  doubao: {
+    platform_name: "火山方舟豆包",
+    model: "ep-m-20260714183735-5k2hx",
+    endpoint: "https://ark.cn-beijing.volces.com/api/v3/chat/completions",
+    apiKey: "",
+    keyStorageName: "daily_report_doubao_api_key",
+    keyAliases: ["ARK_API_KEY", "ark_api_key", "doubao_api_key", "doubaoKey"],
+    enabled: true,
+    capabilities: ["图片", "视频", "流式", "深度思考"],
+    temperature: 0.3,
+    top_p: 0.4,
+    params: {
+      temperature: { value: 0.3, min: 0, max: 1, step: 0.1, locked: false, desc: "值越低越稳定，值越高越发散。" },
+      top_p: { value: 0.4, min: 0, max: 1, step: 0.05, locked: false, desc: "控制采样范围，值越低越聚焦。" },
+    },
+    extra: {
+      max_tokens: 262144,
+      reasoning_effort: "high",
+      low_latency: true,
+      cache: false,
+    },
+  },
+};
+
+function loadPlatforms(){
+  state.platformsMeta = PLATFORMS;
+  const keys = Object.keys(state.platformsMeta);
+  state.platform = keys.find(k => state.platformsMeta[k].enabled) || keys[0];
+  renderPlatformSwitches();
+  updateActiveLabel();
+}
+
+const LOGOS = {
+  qianfan: { bg:"#2B6BE6", text:"千" },
+  kimi:    { bg:"#1A1A2E", text:"K" },
+  doubao:  { bg:"#FF6B35", text:"豆" },
+};
+
+function renderPlatformSwitches(){
+  platformListEl.innerHTML = "";
+  Object.entries(state.platformsMeta).forEach(([key, meta]) => {
+    const card = document.createElement("div");
+    const selected = state.platform === key;
+    const disabled = !meta.enabled;
+    const hasKey = !!meta.apiKey;
+    const logo = LOGOS[key] || { bg:"#888", text:"?" };
+    card.className = "platform-card" + (selected ? " selected" : "") + (disabled ? " disabled" : "");
+    card.dataset.key = key;
+    card.innerHTML = `
+      <div class="platform-logo" style="background:${logo.bg};">${logo.text}</div>
+      <div class="platform-info">
+        <div class="name">${meta.platform_name}</div>
+        <div class="key-status${hasKey ? " ok" : ""}">${hasKey ? "已配置" : "未配置 Key"}</div>
+        ${(meta.capabilities && meta.capabilities.length) ? `<div class="cap-tags">${meta.capabilities.map(c => `<span class="cap-tag${c === "深度思考" ? " think" : ""}">${c}</span>`).join("")}</div>` : ""}
+      </div>
+      ${key === "doubao" ? `<span class="think-badge">深度思考</span>` : ""}
+      <div class="platform-check">${selected ? "✓" : ""}</div>`;
+    card.addEventListener("click", () => {
+      if (disabled) return;
+      state.platform = key;
+      renderPlatformSwitches();
+      updateActiveLabel();
+      renderSettingsView();
+    });
+    platformListEl.appendChild(card);
+  });
+}
+
+function updateActiveLabel(){
+  const meta = state.platformsMeta[state.platform];
+  if (!meta) { activeLabelEl.textContent = ""; return; }
+  const logo = LOGOS[state.platform] || { bg:"#888", text:"?" };
+  const badge = document.querySelector(".active-badge");
+  if (badge) {
+    badge.innerHTML = `
+      <span class="badge-icon" style="background:${logo.bg};">${logo.text}</span>
+      <span class="badge-dot" style="background:${logo.bg};"></span>
+      <span>当前：${meta.platform_name}</span>`;
+  }
+}
+
+function escapeHTML(text){
+  return String(text).replace(/[&<>'"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[ch]));
+}
+
+function stripHTML(html){
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  return tmp.textContent || tmp.innerText || "";
+}
+
+function formatNow(){
+  return new Date().toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false });
+}
+
+function renderRecordsView(){
+  if (!state.records.length) {
+    recordsListEl.innerHTML = '<div class="empty-state">暂无对话记录，生成一次日报后会在这里显示。</div>';
+    return;
+  }
+  recordsListEl.innerHTML = '<div class="record-list">' + state.records.map(record => `
+    <div class="record-item">
+      <div class="record-head">
+        <span class="record-role">${record.role === "user" ? "我" : record.tag || "AI"}</span>
+        <span class="record-time">${record.time}</span>
+      </div>
+      <div class="record-text">${escapeHTML(record.content).slice(0, 1200)}</div>
+    </div>`).join("") + '</div>';
+}
+
+function updateRecordForBubble(bubble, content){
+  const id = bubble.dataset.recordId;
+  const record = state.records.find(item => item.id === id);
+  if (record) record.content = stripHTML(content).trim() || record.content;
+  if (document.getElementById("view-records").classList.contains("active")) renderRecordsView();
+}
+
+function renderParamPanel(platformKey, meta){
+  const systemPrompt = getCurrentSystemPrompt();
+  const rows = Object.entries(meta.params || {}).map(([name, conf]) => {
+    const value = getParamDisplayValue(meta[name] ?? conf.value);
+    const disabled = conf.locked ? "disabled" : "";
+    const hint = conf.locked
+      ? `<p class="model-param-hint lock">${escapeHTML(conf.desc || "该参数由当前模型接口固定要求，不能修改。")}</p>`
+      : `<p class="model-param-hint">${escapeHTML(conf.desc || "")}</p>`;
+    return `
+      <div class="model-param-field${conf.locked ? " locked" : ""}">
+        <label class="model-param-label">${escapeHTML(name)}</label>
+        <div class="model-param-control-row">
+          <input class="model-param-slider" type="range" min="${conf.min}" max="${conf.max}" step="${conf.step}" value="${value}" ${disabled}
+            oninput="this.nextElementSibling.value=this.value"
+            onchange="updatePlatformParam('${platformKey}','${name}',this.value)" />
+          <input class="model-param-number" type="number" min="${conf.min}" max="${conf.max}" step="${conf.step}" value="${value}" ${disabled}
+            onchange="updatePlatformParam('${platformKey}','${name}',this.value)" />
+        </div>
+        ${hint}
+      </div>`;
+  }).join("");
+  const reasoningLabels = { low: "低", medium: "中", high: "高" };
+  const maxTokens = meta.extra && meta.extra.max_tokens ? meta.extra.max_tokens : "";
+  const reasoningEffort = meta.extra && meta.extra.reasoning_effort ? meta.extra.reasoning_effort : "high";
+  const doubaoExtra = platformKey === "doubao" && meta.extra ? `
+      <div class="model-param-field readonly-field">
+        <label class="model-param-label">最大输出长度</label>
+        <div class="model-param-control-row">
+          <input class="model-param-slider" type="range" min="1024" max="${maxTokens}" step="1024" value="${maxTokens}" disabled />
+          <input class="model-param-number" type="number" value="${maxTokens}" disabled />
+        </div>
+        <p class="model-param-hint">来自当前豆包模型配置，仅展示，不在这里修改。</p>
+      </div>
+      <div class="model-param-field readonly-field">
+        <label class="model-param-label">思考深度</label>
+        <select class="model-param-select" disabled>
+          <option>${escapeHTML(reasoningLabels[reasoningEffort] || reasoningEffort)}</option>
+        </select>
+      </div>` : "";
+
+  return `
+    <div class="model-param-panel">
+      <div class="model-param-header">
+        <h3>模型参数</h3>
+        <div class="model-param-actions">
+          <button class="icon-param-btn" title="恢复默认参数" onclick="resetPlatformParams('${platformKey}')">↻</button>
+          <button class="icon-param-btn" title="关闭" onclick="switchView('generate')">×</button>
+        </div>
+      </div>
+      <div class="api-mode-card">
+        <div class="api-mode-title"><span>API 模式</span><strong>Responses</strong><span class="api-mode-caret">⌄</span></div>
+        <p>适用构建 Agent，内建上下文与多工具写作开箱即用。</p>
+      </div>
+      <div class="model-param-divider"></div>
+      ${rows}
+      ${doubaoExtra}
+      <div class="model-param-field instructions-field">
+        <label class="model-param-label">Instructions</label>
+        <textarea id="system-prompt-input" class="model-param-textarea" spellcheck="false">${escapeHTML(systemPrompt)}</textarea>
+        <div class="model-param-inline-actions">
+          <span id="system-prompt-count" class="model-param-hint">当前 ${systemPrompt.length} 字</span>
+          <button class="secondary-btn" onclick="resetSystemPrompt()">恢复默认</button>
+          <button class="primary-btn" onclick="saveSystemPrompt()">保存 Instructions</button>
+        </div>
+      </div>
+      <div class="model-param-field locked">
+        <label class="model-param-label">stream</label>
+        <strong class="model-param-static">开启</strong>
+        <p class="model-param-hint">当前页面依赖流式输出体验，保持开启。</p>
+      </div>
+    </div>`;
+}
+
+function renderSettingsView(){
+  const meta = state.platformsMeta[state.platform] || {};
+  const pKey = state.platform;
+
+  // 三平台密钥输入卡片
+  const keyCards = Object.entries(PLATFORMS).map(([key, p]) => {
+    const savedKey = p.apiKey;
+    return `
+      <div class="settings-card">
+        <h3>${escapeHTML(p.platform_name)} API Key</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="key-input-${key}"
+            type="password"
+            value="${escapeHTML(savedKey)}"
+            placeholder="粘贴 API Key 后回车保存"
+            style="flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit;outline:none;"
+          />
+          <button onclick="saveApiKey('${key}')"
+            style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600;">
+            保存
+          </button>
+        </div>
+        <div style="font-size:11px;color:var(--sub);margin-top:5px;">${savedKey ? "✅ 已配置" : "⚠️ 未配置，无法调用此平台"}</div>
+      </div>`;
+  }).join("");
+
+  settingsContentEl.innerHTML = `
+    <div class="settings-layout">
+      <div class="settings-left">
+        <section class="settings-card">
+          <h3>当前模型</h3>
+          <div class="kv"><span>平台</span><span>${escapeHTML(meta.platform_name || "未选择")}</span></div>
+          <div class="kv"><span>模型</span><span>${escapeHTML(meta.model || "-")}</span></div>
+          <div class="kv"><span>状态</span><span>${meta.enabled === false ? "未启用" : "已启用"}</span></div>
+        </section>
+        <section class="settings-card">
+          <h3>密钥与接口</h3>
+          <p class="prompt-summary" style="margin-bottom:14px;">本页面直连三方模型接口（popo 静态版），密钥保存在浏览器本地（localStorage），不上传任何服务器。切换平台后需先配置对应密钥。</p>
+          <div class="settings-key-grid">${keyCards}</div>
+        </section>
+      </div>
+      <div class="settings-right">
+        ${renderParamPanel(pKey, meta)}
+      </div>
+    </div>`;
+
+  // 绑定回车保存
+  Object.keys(PLATFORMS).forEach(key => {
+    const input = document.getElementById(`key-input-${key}`);
+    if (input) {
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") saveApiKey(key);
+      });
+    }
+  });
+
+  const promptInput = document.getElementById("system-prompt-input");
+  const promptCount = document.getElementById("system-prompt-count");
+  if (promptInput && promptCount) {
+    promptInput.addEventListener("input", () => {
+      promptCount.textContent = `当前 ${promptInput.value.length} 字`;
+    });
+  }
+}
+
+function saveApiKey(platformKey){
+  const input = document.getElementById(`key-input-${platformKey}`);
+  if (!input) return;
+  const val = input.value.trim();
+  PLATFORMS[platformKey].apiKey = val;
+  if (val) {
+    try { localStorage.setItem(PLATFORMS[platformKey].keyStorageName, val); } catch(_){}
+  }
+  renderSettingsView();
+  renderPlatformSwitches();
+}
+
+function loadSavedKeys(){
+  Object.entries(PLATFORMS).forEach(([key, p]) => {
+    try {
+      const saved = localStorage.getItem(p.keyStorageName);
+      // 兼容旧版本 key 别名
+      let val = saved;
+      if (!val) {
+        for (const alias of (p.keyAliases || [])) {
+          val = localStorage.getItem(alias);
+          if (val) break;
+        }
+      }
+      // Kimi 已切到内部 OneAPI：强制用当前内置 token 覆盖旧 Moonshot 缓存，避免继续 401/429
+      if (key === "kimi" && p.forceDefaultKey) {
+        val = p.apiKey;
+        localStorage.setItem(p.keyStorageName, val);
+      }
+      if (val) p.apiKey = val;
+    } catch(_){}
+  });
+}
+
+function loadSavedSystemPrompt(){
+  try {
+    const saved = localStorage.getItem(SYSTEM_PROMPT_STORAGE_KEY);
+    currentSystemPrompt = saved && saved.trim() ? saved : DEFAULT_SYSTEM_PROMPT;
+  } catch(_) {
+    currentSystemPrompt = DEFAULT_SYSTEM_PROMPT;
+  }
+}
+
+function saveSystemPrompt(){
+  const textarea = document.getElementById("system-prompt-input");
+  if (!textarea) return;
+  const value = textarea.value.trim();
+  currentSystemPrompt = value || DEFAULT_SYSTEM_PROMPT;
+  try { localStorage.setItem(SYSTEM_PROMPT_STORAGE_KEY, currentSystemPrompt); } catch(_){}
+  renderSettingsView();
+}
+
+function resetSystemPrompt(){
+  currentSystemPrompt = DEFAULT_SYSTEM_PROMPT;
+  try { localStorage.removeItem(SYSTEM_PROMPT_STORAGE_KEY); } catch(_){}
+  renderSettingsView();
+}
+
+function clampParamValue(value, min, max){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return min;
+  return Math.min(max, Math.max(min, num));
+}
+
+function getParamStorageKey(platformKey, name){
+  return `daily_report_param_${platformKey}_${name}`;
+}
+
+function getParamDisplayValue(value){
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "-";
+  return Number(num.toFixed(3)).toString();
+}
+
+function loadSavedParams(){
+  Object.entries(PLATFORMS).forEach(([platformKey, meta]) => {
+    Object.entries(meta.params || {}).forEach(([name, conf]) => {
+      if (conf.locked) {
+        meta[name] = conf.value;
+        return;
+      }
+      let next = conf.value;
+      try {
+        const saved = localStorage.getItem(getParamStorageKey(platformKey, name));
+        if (saved !== null) next = Number(saved);
+      } catch(_){}
+      meta[name] = clampParamValue(next, conf.min, conf.max);
+    });
+  });
+}
+
+function updatePlatformParam(platformKey, name, value){
+  const meta = PLATFORMS[platformKey];
+  const conf = meta && meta.params && meta.params[name];
+  if (!meta || !conf || conf.locked) return;
+  const next = clampParamValue(value, conf.min, conf.max);
+  meta[name] = next;
+  try { localStorage.setItem(getParamStorageKey(platformKey, name), String(next)); } catch(_){}
+  renderSettingsView();
+}
+
+function resetPlatformParams(platformKey){
+  const meta = PLATFORMS[platformKey];
+  if (!meta || !meta.params) return;
+  Object.entries(meta.params).forEach(([name, conf]) => {
+    meta[name] = conf.value;
+    try { localStorage.removeItem(getParamStorageKey(platformKey, name)); } catch(_){}
+  });
+  renderSettingsView();
+}
+
+// ---------------- 全局拖拽上传 ----------------
+const dropOverlay = document.getElementById("drop-overlay");
+const dropZone = document.getElementById("drop-zone");
+const MAX_IMAGES = 9;
+const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+let dragCounter = 0; // 用计数器解决子元素触发 dragleave 导致遮罩闪烁的问题
+
+function handleIncomingFiles(fileList){
+  const files = [...fileList];
+  const images = files.filter(f => f.type.startsWith("image/"));
+  const videos = files.filter(f => f.type.startsWith("video/"));
+
+  if (images.length === 0 && videos.length === 0) {
+    addBubble("ai", "暂不支持该文件格式，请上传图片或视频文件。", "系统提示");
+    return;
+  }
+  let rejected = 0;
+  for (const file of images) {
+    if (state.attachedImages.length >= MAX_IMAGES) { rejected++; continue; }
+    if (file.size > MAX_SIZE) { rejected++; continue; }
+    state.attachedImages.push({ file, url: URL.createObjectURL(file), dataUrl: null });
+  }
+  for (const file of videos) {
+    state.attachedVideos.push({ file, name: file.name, type: file.type, size: file.size });
+  }
+  renderAttachPreview();
+  if (rejected > 0) {
+    addBubble("ai", `已加入 ${images.length - rejected} 张图片，${rejected} 张因超过数量上限（${MAX_IMAGES}张）或大小上限（20MB）被跳过。`, "系统提示");
+  }
+}
+
+["dragenter", "dragover", "dragleave", "drop"].forEach(evt => {
+  window.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); }, false);
+});
+
+window.addEventListener("dragenter", (e) => {
+  if (!e.dataTransfer || !e.dataTransfer.types.includes("Files")) return;
+  dragCounter++;
+  dropOverlay.classList.add("show");
+});
+
+window.addEventListener("dragleave", () => {
+  dragCounter = Math.max(0, dragCounter - 1);
+  if (dragCounter === 0) dropOverlay.classList.remove("show");
+});
+
+window.addEventListener("dragover", (e) => {
+  if (!e.dataTransfer || !e.dataTransfer.types.includes("Files")) return;
+  dropZone.classList.add("dragging");
+});
+
+window.addEventListener("drop", (e) => {
+  dragCounter = 0;
+  dropOverlay.classList.remove("show");
+  dropZone.classList.remove("dragging");
+  if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+    handleIncomingFiles(e.dataTransfer.files);
+  }
+});
+
+document.getElementById("attach-btn").addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", (e) => {
+  handleIncomingFiles(e.target.files);
+  fileInput.value = "";
+});
+
+function renderAttachPreview(){
+  attachPreviewEl.innerHTML = "";
+  const hasItems = state.attachedImages.length > 0 || state.attachedVideos.length > 0;
+  attachPreviewEl.classList.toggle("has-items", hasItems);
+
+  state.attachedImages.forEach((img, idx) => {
+    const card = document.createElement("div");
+    card.className = "attach-card";
+    const preview = document.createElement("img");
+    preview.src = img.url;
+    preview.alt = `图片${idx + 1}`;
+    const remove = document.createElement("button");
+    remove.className = "attach-remove";
+    remove.type = "button";
+    remove.setAttribute("aria-label", `删除图片${idx + 1}`);
+    remove.textContent = "×";
+    remove.onclick = () => {
+      state.attachedImages.splice(idx, 1);
+      renderAttachPreview();
+    };
+    card.appendChild(preview);
+    card.appendChild(remove);
+    attachPreviewEl.appendChild(card);
+  });
+
+  state.attachedVideos.forEach((vid, idx) => {
+    const card = document.createElement("div");
+    card.className = "attach-video-card";
+    const icon = document.createElement("div");
+    icon.className = "attach-video-icon";
+    icon.textContent = "🎬";
+    const name = document.createElement("div");
+    name.className = "attach-video-name";
+    name.textContent = vid.name;
+    const remove = document.createElement("button");
+    remove.className = "attach-remove";
+    remove.type = "button";
+    remove.setAttribute("aria-label", `删除视频${idx + 1}`);
+    remove.textContent = "×";
+    remove.onclick = () => {
+      state.attachedVideos.splice(idx, 1);
+      renderAttachPreview();
+    };
+    card.appendChild(icon);
+    card.appendChild(name);
+    card.appendChild(remove);
+    attachPreviewEl.appendChild(card);
+  });
+}
+
+function renderBubbleHTML(tag, html){
+  const mdClass = 'md-body';
+  const isAI = tag !== "我";
+  const actions = isAI ? `<div class="bubble-actions"><button class="act-btn" onclick="copyBubbleContent(this)"><span>⧉</span><span>复制</span></button></div>` : "";
+  return `<div class="bubble-inner">` +
+    (tag ? `<span class="tag">${tag}</span>` : "") +
+    `<div class="${mdClass}">${html}</div>` +
+    actions +
+    `</div>`;
+}
+
+function copyBubbleContent(btn){
+  const bubble = btn.closest(".bubble");
+  if (!bubble) return;
+  const record = state.records.find(item => item.id === bubble.dataset.recordId);
+  const text = record ? record.content : stripHTML(bubble.querySelector(".md-body")?.innerHTML || "");
+  navigator.clipboard.writeText(text).then(() => {
+    const old = btn.textContent;
+    btn.textContent = "已复制";
+    setTimeout(() => btn.textContent = old, 1200);
+  });
+}
+
+function addBubble(role, html, tag){
+  const row = document.createElement("div");
+  const b = document.createElement("div");
+  const recordId = "record_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+  const time = formatNow();
+  row.className = "message-row " + (role === "user" ? "user" : "ai");
+  row.dataset.time = time;
+  const timeEl = document.createElement("span");
+  timeEl.className = "message-time";
+  timeEl.textContent = time.slice(0, 5);
+  b.className = "bubble " + (role === "user" ? "user" : "ai");
+  b.dataset.recordId = recordId;
+  b.dataset.time = time;
+  b.dataset.tag = tag || "";
+  b.innerHTML = renderBubbleHTML(tag, html);
+  row.appendChild(timeEl);
+  row.appendChild(b);
+  threadEl.appendChild(row);
+  state.records.push({ id: recordId, role, tag, time, content: stripHTML(html).trim() || tag || "" });
+  if (document.getElementById("view-records").classList.contains("active")) renderRecordsView();
+  threadEl.scrollTop = threadEl.scrollHeight;
+  return b;
+}
+
+function isReportSectionLine(line){
+  const title = line
+    .trim()
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/\*\*/g, "")
+    .replace(/[：:]$/, "")
+    .trim();
+  return /^【[^】]+】$/.test(title) ||
+    title.includes("今日完成工作") ||
+    title.includes("现存问题&待协调事项") ||
+    title.includes("现存问题＆待协调事项") ||
+    title.includes("明日工作计划");
+}
+
+function cleanReportListLine(line){
+  return line
+    .trim()
+    .replace(/^>\s*/, "")
+    .replace(/^[\-*•]\s*/, "")
+    .replace(/^\[[ xX]\]\s*/, "")
+    .replace(/^\d+(?:\.\d+)+(?:[、.)]\s*|\s+)?/, "")
+    .replace(/^\d+[、.)]\s*/, "")
+    .replace(/^[（(]\d+[）)]\s*/, "")
+    .replace(/^[\-*•]\s*/, "")
+    .replace(/^\[[ xX]\]\s*/, "")
+    .trim();
+}
+
+function normalizeDailyReportFormat(text){
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const result = [];
+  let itemIndex = 0;
+  let inSection = false;
+
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      if (result.length && result[result.length - 1] !== "") result.push("");
+      return;
+    }
+
+    if (/^#{1,6}\s+/.test(trimmed) || isReportSectionLine(trimmed)) {
+      result.push(trimmed);
+      itemIndex = 0;
+      inSection = true;
+      return;
+    }
+
+    const cleanLine = cleanReportListLine(trimmed);
+    if (!cleanLine) return;
+
+    const isListLike = cleanLine !== trimmed || /^\d+[、.)]\s*/.test(trimmed) || /^\d+(?:\.\d+)+(?:[、.)]\s*|\s*)/.test(trimmed);
+    if (inSection || isListLike) {
+      itemIndex += 1;
+      result.push(`${itemIndex}、${cleanLine}`);
+      return;
+    }
+
+    result.push(cleanLine);
+  });
+
+  return result.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+const CHINESE_LIST_COMMA_TOKEN = "__CJK_LIST_COMMA__";
+
+function protectChineseNumberedLines(text){
+  return String(text || "").replace(/(^|\n)(\s*)(\d+)、/g, `$1$2$3${CHINESE_LIST_COMMA_TOKEN}`);
+}
+
+function renderMarkdown(text){
+  const protectedText = protectChineseNumberedLines(text);
+  if (typeof marked === "undefined") {
+    // marked 未加载时降级为简单处理
+    return protectedText
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+      .replace(/(【[^】]+】)/g,'<strong class="report-section">$1</strong>')
+      .split(CHINESE_LIST_COMMA_TOKEN).join("、")
+      .replace(/(，进度\d{1,3}%)/g,'<span class="progress">$1</span>')
+      .replace(/\n/g,"<br/>");
+  }
+  // 配置 marked
+  marked.setOptions({ breaks: true, gfm: true });
+  // 先用 marked 渲染 Markdown
+  let html = marked.parse(protectedText);
+  // 再对【三段式标题】加特殊样式（marked 不会破坏这段）
+  html = html.replace(/(【[^】]+】)/g, '<strong class="report-section">$1</strong>');
+  // 还原中文顿号编号
+  html = html.split(CHINESE_LIST_COMMA_TOKEN).join("、");
+  // 进度高亮
+  html = html.replace(/(，进度\d{1,3}%)/g, '<span class="progress">$1</span>');
+  return html;
+}
+
+
+function highlightProgress(text){
+  return renderMarkdown(text);
+}
+
+// ---- Task 2 helpers: 多轮上下文与素材转换 ----
+
+function fileToDataURL(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function extractVideoUrls(text){
+  const re = /https?:\/\/[^\s\u3000\uff00-\uffef]+?\.(mp4|mov|avi|mkv|webm|flv|m3u8)(\?[^\s\u3000\uff00-\uffef]*)?/gi;
+  const found = [];
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    found.push(m[0]);
+  }
+  return found;
+}
+
+async function buildUserMessageParts(text, images, localVideos){
+  const parts = [];
+
+  // 文字
+  if (text) {
+    // 从文本里提取视频 URL，作为 video_url part
+    const videoLinks = extractVideoUrls(text);
+    // 把视频链接替换成提示说明，保留原始文字
+    let cleanText = text;
+    for (const link of videoLinks) {
+      cleanText = cleanText.replace(link, `[视频: ${link}]`);
+    }
+    parts.push({ type: "text", text: cleanText });
+    for (const link of videoLinks) {
+      parts.push({ type: "video_url", url: link });
+    }
+  }
+
+  // 图片：转 data URL（已在 attachedImages 中保存了 dataUrl）
+  for (const img of images) {
+    const dataUrl = img.dataUrl || await fileToDataURL(img.file);
+    // data URL 格式: "data:image/png;base64,xxxx"
+    const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (match) {
+      parts.push({ type: "image_url", url: dataUrl, mime: match[1] });
+    }
+  }
+
+  // 本地视频（无法上传到三方，只作文字说明）
+  for (const vid of localVideos) {
+    parts.push({
+      type: "text",
+      text: `[本地视频素材: ${vid.name}，类型: ${vid.type}，大小: ${(vid.size/1024/1024).toFixed(1)}MB，请结合上下文描述进行解读]`,
+    });
+  }
+
+  return parts;
+}
+
+// ---- Task 3: 三平台直连调用与流式解析 ----
+
+/**
+ * 把通用 parts 转换成某个平台所需的 messages content 格式
+ * parts: [{type:"text",text}, {type:"image_url",url,mime}, {type:"video_url",url}]
+ */
+function convertPartsForPlatform(parts, platformKey){
+  if (!parts || parts.length === 0) return "";
+
+  // 只有纯文本时直接返回字符串
+  const nonText = parts.filter(p => p.type !== "text");
+  if (nonText.length === 0) {
+    return parts.map(p => p.text).join("\n");
+  }
+
+  const result = [];
+  for (const p of parts) {
+    if (p.type === "text") {
+      result.push({ type: "text", text: p.text });
+    } else if (p.type === "image_url") {
+      result.push({ type: "image_url", image_url: { url: p.url } });
+    } else if (p.type === "video_url") {
+      if (platformKey === "qianfan") {
+        // 千帆 VL 支持 video_url
+        result.push({ type: "video_url", video_url: { url: p.url } });
+      } else if (platformKey === "doubao") {
+        // 豆包 Ark 支持 video_url
+        result.push({ type: "video_url", video_url: { url: p.url } });
+      } else {
+        // Kimi 不支持直接视频链接，退化为文字
+        result.push({ type: "text", text: `[视频素材: ${p.url}，请结合已有信息解读]` });
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * 构建平台请求 payload
+ * history: [{role, content}] 已含 system
+ */
+function buildProviderPayload(platformKey, messages){
+  const pMeta = PLATFORMS[platformKey];
+  const base = {
+    model: pMeta.model,
+    messages: messages,
+    temperature: pMeta.temperature ?? COMMON_PARAMS.temperature,
+    top_p: pMeta.top_p ?? COMMON_PARAMS.top_p,
+    stream: true,
+  };
+  if (platformKey === "doubao" && pMeta.extra) {
+    base.max_tokens = pMeta.extra.max_tokens;
+    // Doubao 扩展字段
+    base.extra_body = {
+      reasoning_effort: pMeta.extra.reasoning_effort,
+      low_latency: pMeta.extra.low_latency,
+      cache: { enabled: pMeta.extra.cache },
+    };
+  }
+  return base;
+}
+
+/**
+ * 解析单行 SSE data 内容，返回 delta 文本或 null
+ * 兼容：
+ *  - OpenAI 标准: choices[0].delta.content
+ *  - 千帆旧格式: result
+ *  - 千帆 OpenAI 兼容也走 choices[0].delta.content
+ */
+function parseSSELine(raw){
+  if (!raw || raw === "[DONE]") return null;
+  try {
+    const chunk = JSON.parse(raw);
+    // 优先走 OpenAI 兼容路径
+    const choices = chunk.choices;
+    if (choices && choices.length > 0) {
+      const content = choices[0].delta && choices[0].delta.content;
+      if (content) return content;
+      // 千帆兼容接口 choices[0].message.content（非流式兜底）
+      if (choices[0].message && choices[0].message.content) return choices[0].message.content;
+    }
+    // 千帆旧格式
+    if (chunk.result) return chunk.result;
+    // 错误体
+    if (chunk.error) {
+      const errMsg = chunk.error.message || JSON.stringify(chunk.error);
+      return `\n[接口错误] ${errMsg}`;
+    }
+    if (chunk.error_code) {
+      return `\n[接口错误] error_code=${chunk.error_code} msg=${chunk.error_msg || ""}`;
+    }
+    return null;
+  } catch(e) {
+    return null;
+  }
+}
+
+function formatProviderError(status, body, platformName){
+  let message = `当前平台 ${platformName} 请求失败。`;
+  if (status === 401) {
+    message = `当前平台 ${platformName} 鉴权失败，请检查 token / API Key 是否有效。`;
+  } else if (status === 429) {
+    message = `当前平台 ${platformName} 额度不足或触发限流，请充值、换 token，或切换到其他模型平台。`;
+  } else if (status === 404) {
+    message = `当前平台 ${platformName} 的模型或接入点不存在，请检查模型名 / endpoint。`;
+  } else if (status >= 500) {
+    message = `当前平台 ${platformName} 服务暂时不可用，请稍后再试或切换平台。`;
+  }
+
+  let detail = "";
+  try {
+    const data = JSON.parse(body);
+    if (data.error) {
+      detail = data.error.message || data.error.msg || JSON.stringify(data.error);
+    } else if (data.message) {
+      detail = data.message;
+    } else {
+      detail = JSON.stringify(data).slice(0, 300);
+    }
+  } catch(_) {
+    detail = (body || "").slice(0, 300);
+  }
+  return detail ? `${message}\n原始信息：${detail}` : message;
+}
+
+/**
+ * 主流式调用函数。
+ * onDelta(text): 每收到一段 token 调用一次
+ * 返回 Promise<void>，reject 时抛出 Error
+ */
+async function streamModelChat(platformKey, messages, onDelta, signal){
+  const pMeta = PLATFORMS[platformKey];
+  if (!pMeta) throw new Error(`未知平台: ${platformKey}`);
+
+  const apiKey = pMeta.apiKey;
+  if (!apiKey) throw new Error(`平台 ${pMeta.platform_name} 的 API Key 未配置，请在模式设置页面填入。`);
+
+  const payload = buildProviderPayload(platformKey, messages);
+
+  const resp = await fetch(pMeta.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+    signal,
+  });
+
+  if (!resp.ok) {
+    let errBody = "";
+    try { errBody = await resp.text(); } catch(_){}
+    throw new Error(formatProviderError(resp.status, errBody, pMeta.platform_name));
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buf = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // SSE 可能用 \n\n 或 \n 分隔
+    const lines = buf.split("\n");
+    buf = lines.pop(); // 最后不完整行留着
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.startsWith("data:")) continue;
+      const raw = trimmed.slice("data:".length).trim();
+      if (raw === "[DONE]") return;
+      const delta = parseSSELine(raw);
+      if (delta) onDelta(delta);
+    }
+  }
+  // 处理 buf 中残余内容
+  if (buf.trim().startsWith("data:")) {
+    const raw = buf.trim().slice("data:".length).trim();
+    const delta = parseSSELine(raw);
+    if (delta) onDelta(delta);
+  }
+}
+
+sendBtn.addEventListener("click", async () => {
+  if (state.isGenerating) {
+    pauseGeneration();
+    return;
+  }
+
+  const text = textInput.value.trim();
+  if (!text && state.attachedImages.length === 0 && state.attachedVideos.length === 0) return;
+
+  const platformKey = state.platform;
+  const pMeta = state.platformsMeta[platformKey];
+  if (!pMeta) return;
+
+  // 检查 API Key
+  if (!pMeta.apiKey) {
+    addBubble("ai",
+      `当前平台 <strong>${pMeta.platform_name}</strong> 尚未配置 API Key。<br/>请前往左侧"模式设置"页面填入后再试。`,
+      "系统提示");
+    return;
+  }
+
+  // 暂存本轮素材引用，清空状态
+  const sentImages = [...state.attachedImages];
+  const sentVideos = [...state.attachedVideos];
+  textInput.value = "";
+  state.attachedImages = [];
+  state.attachedVideos = [];
+  renderAttachPreview();
+  sendBtn.disabled = true;
+
+  // 用户气泡
+  if (text) {
+    const userHtml = text.replace(/\n/g, "<br/>");
+    const userBubble = addBubble("user", userHtml, "我");
+    if (sentImages.length) {
+      const thumbs = document.createElement("div");
+      thumbs.className = "thumbs";
+      sentImages.forEach(img => {
+        const im = document.createElement("img");
+        im.src = img.url;
+        im.style.cursor = "zoom-in";
+        im.addEventListener("click", () => {
+          const modal = document.createElement("div");
+          modal.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;cursor:zoom-out;";
+          const big = document.createElement("img");
+          big.src = img.url;
+          big.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;";
+          modal.appendChild(big);
+          modal.addEventListener("click", () => modal.remove());
+          document.body.appendChild(modal);
+        });
+        thumbs.appendChild(im);
+      });
+      userBubble.querySelector(".bubble-inner").appendChild(thumbs);
+    }
+  } else if (sentImages.length || sentVideos.length) {
+    // 只有素材没有文字：只展示图片缩略图，不加文字气泡
+    const thumbBubble = addBubble("user", "", "我");
+    if (sentImages.length) {
+      const thumbs = document.createElement("div");
+      thumbs.className = "thumbs";
+      sentImages.forEach(img => {
+        const im = document.createElement("img");
+        im.src = img.url;
+        im.style.cursor = "zoom-in";
+        im.addEventListener("click", () => {
+          const modal = document.createElement("div");
+          modal.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;cursor:zoom-out;";
+          const big = document.createElement("img");
+          big.src = img.url;
+          big.style.cssText = "max-width:90vw;max-height:90vh;border-radius:8px;";
+          modal.appendChild(big);
+          modal.addEventListener("click", () => modal.remove());
+          document.body.appendChild(modal);
+        });
+        thumbs.appendChild(im);
+      });
+      thumbBubble.querySelector(".bubble-inner").appendChild(thumbs);
+    }
+    if (sentVideos.length) {
+      const vDiv = document.createElement("div");
+      vDiv.style.cssText = "margin-top:6px;font-size:12px;opacity:.85;";
+      vDiv.textContent = sentVideos.map(v => `🎬 ${v.name}`).join("  ");
+      thumbBubble.querySelector(".bubble-inner").appendChild(vDiv);
+    }
+  }
+
+  // 构建本轮 user message parts
+  const userParts = await buildUserMessageParts(text, sentImages, sentVideos);
+  const userContent = convertPartsForPlatform(userParts, platformKey);
+
+  // 保存用户轮次到 history
+  state.history.push({ role: "user", content: userContent });
+
+  // 构建完整 messages：system + history
+  const messages = [
+    { role: "system", content: getCurrentSystemPrompt() },
+    ...state.history,
+  ];
+
+  const aiBubble = addBubble("ai", "", pMeta.platform_name);
+  state.currentAiBubble = aiBubble;
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  state.currentAbortController = controller;
+  state.isGenerating = true;
+  updateSendButtonState();
+  // 显示加载态三点动画
+  const dotsHTML = `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+  aiBubble.querySelector(".md-body").innerHTML = dotsHTML;
+  let acc = "";
+
+  try {
+    await streamModelChat(platformKey, messages, (delta) => {
+      acc += delta;
+      const previewText = normalizeDailyReportFormat(acc);
+      aiBubble.innerHTML = renderBubbleHTML(pMeta.platform_name, highlightProgress(previewText), aiBubble.dataset.time);
+      updateRecordForBubble(aiBubble, previewText);
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }, controller ? controller.signal : undefined);
+    const finalText = normalizeDailyReportFormat(acc);
+    aiBubble.innerHTML = renderBubbleHTML(pMeta.platform_name, highlightProgress(finalText));
+    state.history.push({ role: "assistant", content: finalText });
+    updateRecordForBubble(aiBubble, finalText);
+    threadEl.scrollTop = threadEl.scrollHeight;
+  } catch (err) {
+    if (err && err.name === "AbortError") {
+      const pausedText = (acc ? acc + "\n\n" : "") + "[已暂停生成]";
+      aiBubble.innerHTML = renderBubbleHTML(pMeta.platform_name, highlightProgress(pausedText), aiBubble.dataset.time);
+      updateRecordForBubble(aiBubble, pausedText);
+      return;
+    }
+    const errorText = (acc ? acc + "\n" : "") + `[请求失败] ${err.message || err}`;
+    aiBubble.innerHTML = renderBubbleHTML(pMeta.platform_name, highlightProgress(errorText), aiBubble.dataset.time);
+    updateRecordForBubble(aiBubble, errorText);
+  } finally {
+    state.currentAbortController = null;
+    state.currentAiBubble = null;
+    state.isGenerating = false;
+    updateSendButtonState();
+  }
+});
+
+textInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    if (e.metaKey || e.ctrlKey) {
+      // Cmd/Ctrl + Enter: 换行
+      e.preventDefault();
+      const pos = textInput.selectionStart;
+      const val = textInput.value;
+      textInput.value = val.slice(0, pos) + "\n" + val.slice(pos);
+      textInput.selectionStart = textInput.selectionEnd = pos + 1;
+      // 触发 input 事件自动撑高
+      textInput.dispatchEvent(new Event("input"));
+    } else if (!e.shiftKey) {
+      // Enter 直接发送
+      e.preventDefault();
+      sendBtn.click();
+    }
+    // Shift+Enter: 浏览器默认换行，不拦截
+  }
+});
+
+// textarea 自动撑高
+textInput.addEventListener("input", () => {
+  textInput.style.height = "auto";
+  textInput.style.height = textInput.scrollHeight + "px";
+});
+
+loadSavedKeys();
+loadSavedParams();
+loadSavedSystemPrompt();
+loadPlatforms();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+
+# 密钥与私有配置
+.env
+.env.*
+*.pem
+*.key
+
+# 本地服务日志
+logs/
+*.log
+.server.pid
