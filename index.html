@@ -490,9 +490,9 @@ const PLATFORMS = {
     },
   },
   kimi: {
-    platform_name: "Kimi（内部 OneAPI）",
-    model: "Kimi-K2.6",
-    endpoint: "https://oneapi-comate.baidu-int.com/v1/chat/completions",
+    platform_name: "Kimi（Moonshot 开放平台）",
+    model: "kimi-k2.6",
+    endpoint: "https://api.moonshot.cn/v1/chat/completions",
     apiKey: "",
     keyStorageName: "daily_report_kimi_api_key",
     keyAliases: ["KIMI_API_KEY", "kimi_api_key", "kimiKey"],
@@ -501,8 +501,8 @@ const PLATFORMS = {
     temperature: 1,
     top_p: 0.95,
     params: {
-      temperature: { value: 1, min: 1, max: 1, step: 0.1, locked: true, desc: "内部 OneAPI 的 Kimi-K2.6 固定要求 temperature=1，避免请求失败。" },
-      top_p: { value: 0.95, min: 0.95, max: 0.95, step: 0.05, locked: true, desc: "内部 OneAPI 的 Kimi-K2.6 固定要求 top_p=0.95，避免请求失败。" },
+      temperature: { value: 1, min: 1, max: 1, step: 0.1, locked: true, desc: "Kimi-K2.6 固定要求 temperature=1，避免请求失败。" },
+      top_p: { value: 0.95, min: 0.95, max: 0.95, step: 0.05, locked: true, desc: "Kimi-K2.6 固定要求 top_p=0.95，避免请求失败。" },
     },
     forceDefaultKey: true,
   },
@@ -738,7 +738,7 @@ function renderSettingsView(){
         </section>
         <section class="settings-card">
           <h3>密钥与接口</h3>
-          <p class="prompt-summary" style="margin-bottom:14px;">本页面直连三方模型接口（popo 静态版），密钥保存在浏览器本地（localStorage），不上传任何服务器。切换平台后需先配置对应密钥。提示：百度千帆需先在千帆控制台开通模型权限后填入 Key；Kimi 为内部 OneAPI，仅内网可用。</p>
+          <p class="prompt-summary" style="margin-bottom:14px;">本页面直连三方模型接口（popo 静态版），密钥保存在浏览器本地（localStorage），不上传任何服务器。切换平台后需先配置对应密钥。提示：百度千帆需先在千帆控制台开通模型权限后填入 Key；Kimi 使用 Moonshot 开放平台，需自备 Key。</p>
           <div class="settings-key-grid">${keyCards}</div>
         </section>
       </div>
